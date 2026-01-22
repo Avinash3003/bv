@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>S3 File Manager</title>
+
+<style>
+    body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+        background: #f6f8fa;
+    }
+
+    /* NAVBAR */
+    nav {
+        background: #24292f;
+        color: white;
+        padding: 16px 24px;
+        font-size: 22px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    nav span {
+        font-size: 16px;
+        opacity: 0.8;
+        margin-left: 10px;
+    }
+
+    /* MAIN */
+    .container {
+        max-width: 1200px;
+        margin: auto;
+        padding: 20px;
+    }
+
+    h2 {
+        margin-top: 0;
+    }
+
+    /* BREADCRUMB */
+    .breadcrumbs {
+        margin-bottom: 20px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .breadcrumbs a {
+        color: #0969da;
+        text-decoration: none;
+    }
+
+    .breadcrumbs a:hover {
+        text-decoration: underline;
+    }
+
+    /* CARD */
+    .card {
+        background: white;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .card:hover {
+        background: #eef2f6;
+    }
+
+    /* FORMS */
+    form {
+        margin-bottom: 14px;
+    }
+
+    .actions form {
+        display: inline;
+    }
+
+    input[type="text"], select {
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #d0d7de;
+        margin-right: 6px;
+    }
+
+    input[type="file"] {
+        margin-right: 6px;
+    }
+
+    /* BUTTONS */
+    button {
+        padding: 8px 14px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        margin-left: 4px;
+    }
+
+    .btn-primary { background: #0969da; color: white; }
+    .btn-success { background: #2da44e; color: white; }
+    .btn-danger  { background: #cf222e; color: white; }
+    .btn-warning { background: #bf8700; color: white; }
+
+    button:hover {
+        opacity: 0.9;
+    }
+</style>
+
+</head>
+
+<body>
+
+<nav onclick="window.location='/'">
+    📦 S3 Manager <span>Simple S3 File Explorer</span>
+</nav>
+
+<div class="container">
+
+{% if view == "buckets" %}
+
+<h2>S3 Buckets</h2>
+
+<form method="post" action="/bucket/create">
+    <input type="text" name="bucket_name" placeholder="Bucket name" required>
+    <button class="btn-primary">➕ Create Bucket</button>
+</form>
+
+{% for b in buckets %}
+    <div class="card">
+        <a href="/bucket/{{ b }}">📦 {{ b }}</a>
+        <form method="post" action="/bucket/delete">
+            <input type="hidden" name="bucket_name" value="{{ b }}">
+            <button class="btn-danger">🗑 Delete</button>
+        </form>
+    </div>
+{% endfor %}
+
+{% endif %}
+
+{% if view == "objects" %}
+
+
+<h2>Bucket: {{ bucket }}</h2>
+
+<div class="breadcrumbs">
+    <a href="/bucket/{{ bucket }}">root</a>
+    {% for crumb in breadcrumbs %}
+        / <a href="/bucket/{{ bucket }}?prefix={{ '/'.join(breadcrumbs[:loop.index]) }}/">{{ crumb }}</a>
+    {% endfor %}
+</div>
+
+{% if parent_path %}
+    <a href="/bucket/{{ bucket }}?prefix={{ parent_path }}">⬅ Back</a>
+{% endif %}
+
+<!-- CREATE FOLDER -->
+<form method="post" action="/folder/create">
+    <input type="hidden" name="bucket_name" value="{{ bucket }}">
+    <input type="hidden" name="prefix" value="{{ current_path }}">
+    <input type="text" name="folder_name" placeholder="Folder name" required>
+    <button class="btn-primary">📁 Create Folder</button>
+</form>
+
+<!-- UPLOAD -->
+<form method="post" action="/upload" enctype="multipart/form-data">
+    <input type="hidden" name="bucket_name" value="{{ bucket }}">
+    <input type="hidden" name="prefix" value="{{ current_path }}">
+    <input type="file" name="file" required>
+    <button class="btn-success">⬆ Upload File</button>
+</form>
+
+<!-- FOLDERS -->
+{% for folder in folders %}
+    <div class="card">
+        <a href="/bucket/{{ bucket }}?prefix={{ folder }}">📁 {{ folder }}</a>
+        <form method="post" action="/folder/delete">
+            <input type="hidden" name="bucket_name" value="{{ bucket }}">
+            <input type="hidden" name="folder_prefix" value="{{ folder }}">
+            <input type="hidden" name="prefix" value="{{ current_path }}">
+            <button class="btn-danger">🗑 Delete Folder</button>
+        </form>
+    </div>
+{% endfor %}
+
+{% set all_folders = folders %}
+
+<!-- FILES -->
+{% for file in files %}
+    <div class="card">
+        <span>📄 {{ file.split('/')[-1] }}</span>
+
+        <div class="actions">
+
+            <!-- COPY -->
+            <form method="post" action="/file/copy">
+                <input type="hidden" name="bucket_name" value="{{ bucket }}">
+                <input type="hidden" name="source_key" value="{{ file }}">
+                <input type="hidden" name="prefix" value="{{ current_path }}">
+                <select name="destination_path">
+                    <option value="">root</option>
+                    {% for f in all_folders %}
+                        <option value="{{ f }}">{{ f }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn-warning">📋 Copy</button>
+            </form>
+
+            <!-- MOVE -->
+            <form method="post" action="/file/move">
+                <input type="hidden" name="bucket_name" value="{{ bucket }}">
+                <input type="hidden" name="source_key" value="{{ file }}">
+                <input type="hidden" name="prefix" value="{{ current_path }}">
+                <select name="destination_path">
+                    <option value="">root</option>
+                    {% for f in all_folders %}
+                        <option value="{{ f }}">{{ f }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn-primary">📂 Move</button>
+            </form>
+
+            <!-- DELETE -->
+            <form method="post" action="/file/delete">
+                <input type="hidden" name="bucket_name" value="{{ bucket }}">
+                <input type="hidden" name="key" value="{{ file }}">
+                <input type="hidden" name="prefix" value="{{ current_path }}">
+                <button class="btn-danger">🗑 Delete</button>
+            </form>
+
+        </div>
+    </div>
+{% endfor %}
+
+{% endif %}
+
+</div>
+
+</body>
+</html>
